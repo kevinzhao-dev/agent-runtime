@@ -43,6 +43,7 @@ class ToolRegistry:
 
 def create_default_registry() -> ToolRegistry:
     """Create a registry with all built-in tools."""
+    from tools.agent_tool import AgentTool
     from tools.bash import BashTool
     from tools.edit import EditTool
     from tools.grep import GrepTool
@@ -55,4 +56,5 @@ def create_default_registry() -> ToolRegistry:
     registry.register(WriteFileTool())
     registry.register(EditTool())
     registry.register(BashTool())
+    registry.register(AgentTool())
     return registry

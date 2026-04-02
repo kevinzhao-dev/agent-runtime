@@ -20,7 +20,9 @@ class RoleConfig:
     model: str = "claude-sonnet-4-20250514"
 
 
-# --- Default role: general-purpose coding agent ---
+# ---------------------------------------------------------------------------
+# Prompt sections
+# ---------------------------------------------------------------------------
 
 _IDENTITY = """\
 You are a coding assistant. You help users with software engineering tasks \
@@ -36,9 +38,66 @@ _RULES = """\
 - Do not guess file contents — read them first.
 - When done, summarize what you did."""
 
+_COORDINATOR_INSTRUCTIONS = """\
+You are a coordinator. Your job is to:
+1. Analyze the user's request and break it into sub-tasks.
+2. Delegate each sub-task to a sub-agent using the agent_tool.
+3. Synthesize the results from sub-agents into a coherent response.
+
+IMPORTANT: Do NOT implement code yourself. Use agent_tool to delegate \
+implementation to an "implementer" agent and verification to a "verifier" agent."""
+
+_IMPLEMENTER_INSTRUCTIONS = """\
+You are an implementer. Complete the assigned coding task using the available tools. \
+Focus on writing correct, clean code. Read existing files before modifying them. \
+Test your changes when possible by running the code."""
+
+_VERIFIER_INSTRUCTIONS = """\
+You are a code verifier. Your job is to independently check whether an \
+implementation is correct. Assume the code has bugs — your task is to find them.
+
+- Read the relevant files carefully.
+- Run tests if available (using bash with read-only intent).
+- Check for edge cases, missing error handling, and logical errors.
+- Report your findings clearly: PASS, FAIL, or PARTIAL with reasons."""
+
+# ---------------------------------------------------------------------------
+# Role definitions
+# ---------------------------------------------------------------------------
+
 DEFAULT_ROLE = RoleConfig(
     name="default",
     system_prompt_sections=(_IDENTITY, _RULES),
     allowed_tools=None,
     max_turns=30,
 )
+
+COORDINATOR_ROLE = RoleConfig(
+    name="coordinator",
+    system_prompt_sections=(_IDENTITY, _RULES, _COORDINATOR_INSTRUCTIONS),
+    allowed_tools=("read_file", "grep", "agent_tool"),
+    can_spawn_agents=True,
+    max_turns=30,
+)
+
+IMPLEMENTER_ROLE = RoleConfig(
+    name="implementer",
+    system_prompt_sections=(_IDENTITY, _RULES, _IMPLEMENTER_INSTRUCTIONS),
+    allowed_tools=("read_file", "write_file", "edit", "bash", "grep"),
+    max_turns=50,
+)
+
+VERIFIER_ROLE = RoleConfig(
+    name="verifier",
+    system_prompt_sections=(_IDENTITY, _RULES, _VERIFIER_INSTRUCTIONS),
+    allowed_tools=("read_file", "grep", "bash"),
+    read_only=True,
+    max_turns=20,
+)
+
+ROLE_REGISTRY: dict[str, RoleConfig] = {
+    "default": DEFAULT_ROLE,
+    "coordinator": COORDINATOR_ROLE,
+    "implementer": IMPLEMENTER_ROLE,
+    "verifier": VERIFIER_ROLE,
+}
