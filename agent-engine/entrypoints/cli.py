@@ -6,8 +6,10 @@ Consumes the query_loop async generator and displays events to the user.
 from __future__ import annotations
 
 import asyncio
+import os
+from typing import Any
 
-from engine.loop import query_loop
+from engine.loop import ToolResult, query_loop
 from engine.state import (
     DoneEvent,
     ErrorEvent,
@@ -16,11 +18,75 @@ from engine.state import (
     ToolUseEvent,
 )
 from roles.config import DEFAULT_ROLE, RoleConfig
+from tools.permission import PermissionDecision, PermissionGate, PermissionMode
+from tools.registry import ToolRegistry, create_default_registry
 
 
-async def run_repl(role_config: RoleConfig = DEFAULT_ROLE) -> None:
+async def _cli_ask_callback(tool_name: str, tool_input: dict[str, Any]) -> bool:
+    """Ask user for permission in the terminal."""
+    preview = str(tool_input)
+    if len(preview) > 200:
+        preview = preview[:200] + "..."
+    answer = await asyncio.to_thread(
+        input, f"\n[Permission] Allow {tool_name}({preview})? [y/N] "
+    )
+    return answer.strip().lower() in ("y", "yes")
+
+
+def _build_tool_executor(
+    registry: ToolRegistry,
+    permission_gate: PermissionGate,
+    working_dir: str,
+):
+    """Build a tool executor callback for the query loop."""
+    from tools.base import ToolContext
+
+    context = ToolContext(
+        working_dir=working_dir,
+        permission_gate=permission_gate,
+    )
+
+    async def executor(
+        tool_name: str, tool_id: str, tool_input: dict[str, Any]
+    ) -> ToolResult:
+        tool = registry.get(tool_name)
+        if tool is None:
+            return ToolResult(content=f"Unknown tool: {tool_name}", is_error=True)
+
+        # Permission check
+        decision = permission_gate.check(tool)
+        if decision == PermissionDecision.DENY:
+            return ToolResult(content=f"Permission denied: {tool_name}", is_error=True)
+        if decision == PermissionDecision.ASK:
+            granted = await permission_gate.request_permission(tool_name, tool_input)
+            if not granted:
+                return ToolResult(content=f"User denied: {tool_name}", is_error=True)
+
+        # Execute
+        result = await tool.execute(input=tool_input, context=context)
+        return ToolResult(content=result.content, is_error=result.is_error)
+
+    return executor
+
+
+async def run_repl(
+    role_config: RoleConfig = DEFAULT_ROLE,
+    permission_mode: PermissionMode = PermissionMode.DEFAULT,
+    working_dir: str | None = None,
+) -> None:
     """Run an interactive REPL session."""
     print("Agent Engine v0.1.0 (type 'exit' to quit)\n")
+
+    wd = working_dir or os.getcwd()
+    registry = create_default_registry()
+    permission_gate = PermissionGate(
+        mode=permission_mode,
+        ask_callback=_cli_ask_callback,
+    )
+
+    tool_schemas = registry.get_api_schemas(role_config)
+    tool_executor = _build_tool_executor(registry, permission_gate, wd)
+    tool_names = [t["name"] for t in tool_schemas]
 
     messages: list[dict] = []
 
@@ -40,7 +106,12 @@ async def run_repl(role_config: RoleConfig = DEFAULT_ROLE) -> None:
 
         messages.append({"role": "user", "content": stripped})
 
-        async for event in query_loop(messages=messages, role_config=role_config):
+        async for event in query_loop(
+            messages=messages,
+            role_config=role_config,
+            tools=tool_schemas,
+            tool_executor=tool_executor,
+        ):
             match event:
                 case TextEvent(text=text):
                     print(text, end="", flush=True)
