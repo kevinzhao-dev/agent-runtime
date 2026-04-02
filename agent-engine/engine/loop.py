@@ -14,8 +14,17 @@ from typing import Any
 
 import anthropic
 
+from context.budget import TokenBudget
+from context.compact import MAX_CONSECUTIVE_COMPACT_FAILURES, compact_conversation
 from context.prompt import build_system_prompt
+from engine.recovery import (
+    handle_api_error,
+    handle_max_output_tokens,
+    handle_prompt_too_long,
+)
 from engine.state import (
+    CompactEvent,
+    CompactTracking,
     DoneEvent,
     ErrorEvent,
     Event,
@@ -49,6 +58,7 @@ async def query_loop(
     tool_executor: ToolExecutor | None = None,
     abort_signal: asyncio.Event | None = None,
     max_turns: int | None = None,
+    token_budget: TokenBudget | None = None,
 ) -> AsyncGenerator[Event, None]:
     """Main query loop — async generator yielding Events.
 
@@ -59,6 +69,7 @@ async def query_loop(
         tool_executor: Callback to execute tool calls. None = no tools.
         abort_signal: Set this event to abort the loop.
         max_turns: Override role_config.max_turns.
+        token_budget: Token budget for context governance.
 
     Yields:
         Event objects (TextEvent, ToolUseEvent, ToolResultEvent, etc.)
@@ -70,6 +81,7 @@ async def query_loop(
         tool_names=[t["name"] for t in tools] if tools else None,
     )
 
+    budget = token_budget or TokenBudget()
     state = LoopState(messages=tuple(messages))
 
     while True:
@@ -91,12 +103,60 @@ async def query_loop(
             )
             return
 
-        # --- Phase A: Pre-model governance (stub — Phase 3 fills this) ---
-        # Future: check token budget, trigger autocompact
+        # --- Phase A: Pre-model governance ---
+        if budget.should_compact() and state.turn_count > 0:
+            tracking = state.compact_tracking
+            if tracking.consecutive_failures >= MAX_CONSECUTIVE_COMPACT_FAILURES:
+                yield ErrorEvent(
+                    error="Compact circuit breaker: too many consecutive failures",
+                    recoverable=False,
+                )
+                yield DoneEvent(
+                    reason="circuit_break",
+                    turn_count=state.turn_count,
+                    messages=state.messages,
+                )
+                return
+
+            try:
+                result = await compact_conversation(
+                    messages=list(state.messages),
+                    model=role_config.model,
+                    tokens_before=budget.current_input_tokens,
+                )
+                yield CompactEvent(
+                    summary=result.summary_message.get("content", "")[:200],
+                    tokens_before=result.tokens_before,
+                    tokens_after=result.tokens_after,
+                )
+                state = evolve(
+                    state,
+                    messages=tuple(result.post_compact_messages),
+                    compact_tracking=CompactTracking(
+                        compact_count=tracking.compact_count + 1,
+                        consecutive_failures=0,
+                        last_compact_token_count=budget.current_input_tokens,
+                    ),
+                    last_transition=TransitionReason.REACTIVE_COMPACT_RETRY,
+                )
+                # Budget will be updated from next API response
+                continue
+            except Exception as e:
+                state = evolve(
+                    state,
+                    compact_tracking=CompactTracking(
+                        compact_count=tracking.compact_count,
+                        consecutive_failures=tracking.consecutive_failures + 1,
+                        last_compact_token_count=tracking.last_compact_token_count,
+                    ),
+                )
+                yield ErrorEvent(error=f"Compact failed: {e}", recoverable=True)
+                # Continue to try the model call anyway
 
         # --- Phase B: Call model (streaming) ---
         accumulated_text = ""
         tool_use_blocks: list[dict[str, Any]] = []
+        response = None
 
         try:
             api_kwargs: dict[str, Any] = {
@@ -120,21 +180,46 @@ async def query_loop(
 
                 response = await stream.get_final_message()
 
+        except anthropic.BadRequestError as e:
+            # Possibly prompt-too-long
+            if "prompt is too long" in str(e).lower():
+                new_state = await handle_prompt_too_long(state, role_config.model)
+                if new_state is None:
+                    yield ErrorEvent(error="Unrecoverable: prompt too long", recoverable=False)
+                    yield DoneEvent(reason="error", turn_count=state.turn_count, messages=state.messages)
+                    return
+                state = new_state
+                yield ErrorEvent(error="Prompt too long — compacted, retrying", recoverable=True)
+                continue
+            else:
+                yield ErrorEvent(error=str(e), recoverable=False)
+                yield DoneEvent(reason="error", turn_count=state.turn_count, messages=state.messages)
+                return
+
         except anthropic.APIStatusError as e:
-            yield ErrorEvent(error=str(e), recoverable=False)
-            yield DoneEvent(
-                reason="error",
-                turn_count=state.turn_count,
-                messages=state.messages,
-            )
-            return
+            # Retryable API errors (429, 5xx)
+            decision = handle_api_error(e, state.api_retry_count)
+            if decision.should_retry:
+                yield ErrorEvent(error=f"API error: {decision.reason}", recoverable=True)
+                await asyncio.sleep(decision.delay_seconds)
+                state = evolve(state, api_retry_count=state.api_retry_count + 1)
+                continue
+            else:
+                yield ErrorEvent(error=f"API error (not retrying): {decision.reason}", recoverable=False)
+                yield DoneEvent(reason="error", turn_count=state.turn_count, messages=state.messages)
+                return
 
         # Update token tracking from response usage
+        budget = budget.update_from_usage({
+            "input_tokens": response.usage.input_tokens,
+            "output_tokens": response.usage.output_tokens,
+        })
         state = evolve(
             state,
             input_tokens_used=response.usage.input_tokens,
             output_tokens_used=response.usage.output_tokens,
             turn_count=state.turn_count + 1,
+            api_retry_count=0,  # Reset on success
         )
 
         # Extract tool_use blocks from response content
@@ -146,8 +231,16 @@ async def query_loop(
                     "input": block.input,
                 })
 
-        # --- Phase C: Error detection (basic — Phase 3 enhances) ---
-        # Future: handle prompt_too_long, max_output_tokens, API errors
+        # --- Phase C: Error detection — max output tokens ---
+        if response.stop_reason == "max_tokens":
+            new_state = handle_max_output_tokens(state, accumulated_text)
+            if new_state is None:
+                yield ErrorEvent(error="Max output recovery limit exceeded", recoverable=False)
+                yield DoneEvent(reason="circuit_break", turn_count=state.turn_count, messages=state.messages)
+                return
+            state = new_state
+            yield ErrorEvent(error="Output truncated — continuing", recoverable=True)
+            continue
 
         # --- Phase D: Tool execution ---
         if tool_use_blocks and tool_executor:
