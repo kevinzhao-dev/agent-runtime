@@ -88,7 +88,7 @@ class PytestStrategy:
 class LLMReviewStrategy:
     """Spawn a verifier agent to do code review."""
 
-    def __init__(self, model: str = "claude-sonnet-4-20250514"):
+    def __init__(self, model: str = "claude-sonnet-4-6"):
         self.model = model
 
     async def verify(self, context: VerifyContext) -> VerifyResult:

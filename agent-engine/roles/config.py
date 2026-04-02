@@ -17,7 +17,7 @@ class RoleConfig:
     read_only: bool = False
     can_spawn_agents: bool = False
     max_turns: int = 30
-    model: str = "claude-sonnet-4-20250514"
+    model: str = "claude-sonnet-4-6"
 
 
 # ---------------------------------------------------------------------------
