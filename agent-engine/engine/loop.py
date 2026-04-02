@@ -8,11 +8,14 @@ An async generator that drives the model through turns of:
 from __future__ import annotations
 
 import asyncio
+import logging
 from collections.abc import AsyncGenerator, Awaitable, Callable
 from dataclasses import dataclass
 from typing import Any
 
 import anthropic
+
+logger = logging.getLogger("agent_engine.loop")
 
 from context.budget import TokenBudget
 from context.compact import MAX_CONSECUTIVE_COMPACT_FAILURES, compact_conversation
@@ -59,6 +62,7 @@ async def query_loop(
     abort_signal: asyncio.Event | None = None,
     max_turns: int | None = None,
     token_budget: TokenBudget | None = None,
+    client: Any | None = None,
 ) -> AsyncGenerator[Event, None]:
     """Main query loop — async generator yielding Events.
 
@@ -70,11 +74,14 @@ async def query_loop(
         abort_signal: Set this event to abort the loop.
         max_turns: Override role_config.max_turns.
         token_budget: Token budget for context governance.
+        client: Anthropic client instance. If None, creates AsyncAnthropic().
+            Pass a mock/dry-run client for testing.
 
     Yields:
         Event objects (TextEvent, ToolUseEvent, ToolResultEvent, etc.)
     """
-    client = anthropic.AsyncAnthropic()
+    if client is None:
+        client = anthropic.AsyncAnthropic()
     effective_max_turns = max_turns or role_config.max_turns
     system_prompt = build_system_prompt(
         role_config,
@@ -84,7 +91,18 @@ async def query_loop(
     budget = token_budget or TokenBudget()
     state = LoopState(messages=tuple(messages))
 
+    logger.info(
+        "loop_start role=%s model=%s max_turns=%d tools=%s",
+        role_config.name, role_config.model, effective_max_turns,
+        [t["name"] for t in tools] if tools else [],
+    )
+
     while True:
+        logger.debug(
+            "turn_begin turn=%d messages=%d input_tokens=%d",
+            state.turn_count, len(state.messages), budget.current_input_tokens,
+        )
+
         # --- Check abort ---
         if abort_signal and abort_signal.is_set():
             yield DoneEvent(
@@ -154,6 +172,7 @@ async def query_loop(
                 # Continue to try the model call anyway
 
         # --- Phase B: Call model (streaming) ---
+        logger.debug("phase_b call_model model=%s", role_config.model)
         accumulated_text = ""
         tool_use_blocks: list[dict[str, Any]] = []
         response = None
@@ -210,6 +229,12 @@ async def query_loop(
                 return
 
         # Update token tracking from response usage
+        logger.info(
+            "model_response turn=%d stop_reason=%s input_tokens=%d output_tokens=%d tool_calls=%d text_len=%d",
+            state.turn_count, response.stop_reason,
+            response.usage.input_tokens, response.usage.output_tokens,
+            len(tool_use_blocks), len(accumulated_text),
+        )
         budget = budget.update_from_usage({
             "input_tokens": response.usage.input_tokens,
             "output_tokens": response.usage.output_tokens,
@@ -244,6 +269,7 @@ async def query_loop(
 
         # --- Phase D: Tool execution ---
         if tool_use_blocks and tool_executor:
+            logger.info("phase_d tool_execution count=%d", len(tool_use_blocks))
             # Build assistant message from response content
             assistant_content: list[dict[str, Any]] = []
             for block in response.content:
@@ -294,9 +320,11 @@ async def query_loop(
                 messages=state.messages + (assistant_msg, tool_result_msg),
                 last_transition=TransitionReason.NEXT_TURN,
             )
+            logger.debug("transition reason=NEXT_TURN messages=%d", len(state.messages))
             continue
 
         # --- Phase E: No tool use = end turn ---
+        logger.info("phase_e end_turn turn=%d", state.turn_count)
         assistant_msg = {"role": "assistant", "content": accumulated_text}
         state = evolve(
             state,

@@ -69,6 +69,7 @@ class AgentEngine:
         self,
         prompt: str,
         messages: list[dict[str, Any]] | None = None,
+        client: Any | None = None,
     ) -> AsyncGenerator[Event, None]:
         """Run the agent with the given prompt.
 
@@ -118,6 +119,7 @@ class AgentEngine:
             tools=tool_schemas,
             tool_executor=executor,
             max_turns=self.max_turns or self.role.max_turns,
+            client=client,
         ):
             yield event
 

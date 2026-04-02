@@ -73,9 +73,15 @@ async def run_repl(
     role_config: RoleConfig = DEFAULT_ROLE,
     permission_mode: PermissionMode = PermissionMode.DEFAULT,
     working_dir: str | None = None,
+    client: Any | None = None,
 ) -> None:
-    """Run an interactive REPL session."""
-    print("Agent Engine v0.1.0 (type 'exit' to quit)\n")
+    """Run an interactive REPL session.
+
+    Args:
+        client: Optional Anthropic client override. Pass a DryRunClient for testing.
+    """
+    mode_label = " [DRY RUN]" if client is not None else ""
+    print(f"Agent Engine v0.1.0{mode_label} (type 'exit' to quit)\n")
 
     wd = working_dir or os.getcwd()
     registry = create_default_registry()
@@ -111,6 +117,7 @@ async def run_repl(
             role_config=role_config,
             tools=tool_schemas,
             tool_executor=tool_executor,
+            client=client,
         ):
             match event:
                 case TextEvent(text=text):

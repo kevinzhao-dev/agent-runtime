@@ -75,6 +75,7 @@ def _build_post_compact_messages(
 async def _summarize_via_llm(
     messages: list[dict[str, Any]],
     model: str,
+    client: Any | None = None,
 ) -> str:
     """Call LLM to summarize the conversation."""
     # Build a flat text of the conversation for summarization
@@ -99,7 +100,8 @@ async def _summarize_via_llm(
 
     full_text = "\n\n".join(conversation_text)
 
-    client = anthropic.AsyncAnthropic()
+    if client is None:
+        client = anthropic.AsyncAnthropic()
     response = await client.messages.create(
         model=model,
         max_tokens=2048,
@@ -114,6 +116,7 @@ async def compact_conversation(
     messages: list[dict[str, Any]],
     model: str,
     tokens_before: int = 0,
+    client: Any | None = None,
 ) -> CompactResult:
     """Run the full compact flow.
 
@@ -133,11 +136,11 @@ async def compact_conversation(
 
     # Step 2: Summarize via LLM
     try:
-        summary = await _summarize_via_llm(cleaned, model)
+        summary = await _summarize_via_llm(cleaned, model, client=client)
     except anthropic.BadRequestError:
         # Prompt too long even for compact — truncate head and retry
         truncated = _truncate_head(cleaned)
-        summary = await _summarize_via_llm(truncated, model)
+        summary = await _summarize_via_llm(truncated, model, client=client)
 
     # Step 3: Build post-compact messages
     post_compact = _build_post_compact_messages(summary, messages, keep_recent=4)

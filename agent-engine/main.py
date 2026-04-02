@@ -3,17 +3,30 @@
 Usage:
     python main.py                          # Interactive REPL
     python main.py "Build a hello server"   # One-shot mode
-    python main.py --role coordinator "..."  # With specific role
+    python main.py --dry-run                # Dry run (no API calls)
+    python main.py --verbose                # Debug logging
+    python main.py --dry-run --verbose      # Best for understanding workflow
 """
 
 import argparse
 import asyncio
+import logging
 import sys
 
 from entrypoints.cli import run_repl
 from engine.state import DoneEvent, ErrorEvent, TextEvent, ToolUseEvent
 from roles.config import ROLE_REGISTRY
 from tools.permission import PermissionMode
+
+
+def _setup_logging(verbose: bool) -> None:
+    level = logging.DEBUG if verbose else logging.WARNING
+    logging.basicConfig(
+        level=level,
+        format="%(asctime)s [%(name)s] %(levelname)s: %(message)s",
+        datefmt="%H:%M:%S",
+        stream=sys.stderr,
+    )
 
 
 def main():
@@ -43,19 +56,37 @@ def main():
         default=None,
         help="Working directory (default: current directory)",
     )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Use a mock client (no real API calls)",
+    )
+    parser.add_argument(
+        "--verbose", "-v",
+        action="store_true",
+        help="Enable debug logging to stderr",
+    )
     args = parser.parse_args()
 
+    _setup_logging(args.verbose)
+
+    client = None
+    if args.dry_run:
+        from engine.dry_run import DryRunClient
+        client = DryRunClient()
+
     if args.prompt:
-        asyncio.run(_run_one_shot(args))
+        asyncio.run(_run_one_shot(args, client=client))
     else:
         asyncio.run(run_repl(
             role_config=ROLE_REGISTRY[args.role],
             permission_mode=PermissionMode(args.permission),
             working_dir=args.working_dir,
+            client=client,
         ))
 
 
-async def _run_one_shot(args):
+async def _run_one_shot(args, client=None):
     """Run a single prompt and exit."""
     from entrypoints.sdk import AgentEngine
 
@@ -66,7 +97,7 @@ async def _run_one_shot(args):
         permission_mode=args.permission,
     )
 
-    async for event in engine.run(args.prompt):
+    async for event in engine.run(args.prompt, client=client):
         match event:
             case TextEvent(text=text):
                 print(text, end="", flush=True)
