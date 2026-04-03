@@ -29,6 +29,19 @@ python main.py
 python main.py "Create a hello world in python"
 ```
 
+### Test
+
+```bash
+# All tests (no API key needed)
+python -m pytest tests/ -v
+
+# Single module
+python -m pytest tests/test_grep.py -v
+
+# Single test
+python -m pytest tests/test_grep.py::test_grep_basic -v
+```
+
 ## License
 
 MIT
