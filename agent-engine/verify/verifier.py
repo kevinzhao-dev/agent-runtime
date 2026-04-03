@@ -160,9 +160,9 @@ class LLMReviewStrategy:
             verdict = Verdict.PARTIAL
         else:
             # Heuristic fallback
-            if "all correct" in text_upper or "looks good" in text_upper:
+            if "ALL CORRECT" in text_upper or "LOOKS GOOD" in text_upper:
                 verdict = Verdict.PASS
-            elif "bug" in text_upper or "error" in text_upper or "fail" in text_upper:
+            elif "BUG" in text_upper or "ERROR" in text_upper or "FAIL" in text_upper:
                 verdict = Verdict.FAIL
             else:
                 verdict = Verdict.PARTIAL
