@@ -5,6 +5,7 @@ description = "A Python agent engine template learning from production-grade cod
 requires-python = ">=3.11"
 dependencies = [
     "anthropic>=0.52.0",
+    "rich>=13.0",
 ]
 
 [project.optional-dependencies]
@@ -18,7 +19,7 @@ dev = [
 agent-engine = "main:main"
 
 [tool.setuptools.packages.find]
-include = ["engine*", "tools*", "context*", "roles*", "verify*", "entrypoints*"]
+include = ["engine*", "tools*", "context*", "roles*", "verify*", "entrypoints*", "commands*"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

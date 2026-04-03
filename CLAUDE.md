@@ -27,10 +27,11 @@ python -m pytest tests/ -v
 ```
 
 ### Project Structure
-- `engine/` — Core query loop and agent runtime
+- `engine/` — Core query loop, agent runtime, session logging
 - `context/` — Memory and context window management
 - `roles/` — Multi-agent role definitions
 - `tools/` — Tool registry and execution
+- `commands/` — Modular slash commands (dual-use: user REPL + system programmatic)
 - `verify/` — Verification and output validation
-- `entrypoints/` — CLI and entry point interfaces
+- `entrypoints/` — CLI, Rich display renderer, and SDK entry points
 - `docs/` — Architecture and design documentation

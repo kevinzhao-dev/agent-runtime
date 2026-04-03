@@ -14,19 +14,22 @@ import logging
 import sys
 
 from entrypoints.cli import run_repl
-from engine.state import DoneEvent, ErrorEvent, TextEvent, ToolUseEvent
+from entrypoints.display import DisplayRenderer
 from roles.config import ROLE_REGISTRY
 from tools.permission import PermissionMode
 
 
 def _setup_logging(verbose: bool) -> None:
-    level = logging.DEBUG if verbose else logging.WARNING
-    logging.basicConfig(
-        level=level,
-        format="%(asctime)s [%(name)s] %(levelname)s: %(message)s",
-        datefmt="%H:%M:%S",
-        stream=sys.stderr,
-    )
+    fmt = "%(asctime)s [%(name)s] %(levelname)s: %(message)s"
+    datefmt = "%H:%M:%S"
+
+    # Root logger stays at WARNING to silence third-party noise (markdown_it, etc.)
+    logging.basicConfig(level=logging.WARNING, format=fmt, datefmt=datefmt, stream=sys.stderr)
+
+    if verbose:
+        # Only our own loggers get DEBUG
+        agent_logger = logging.getLogger("agent_engine")
+        agent_logger.setLevel(logging.DEBUG)
 
 
 def main():
@@ -97,18 +100,9 @@ async def _run_one_shot(args, client=None):
         permission_mode=args.permission,
     )
 
-    async for event in engine.run(args.prompt, client=client):
-        match event:
-            case TextEvent(text=text):
-                print(text, end="", flush=True)
-            case ToolUseEvent(tool_name=name):
-                print(f"\n[Tool: {name}]", file=sys.stderr)
-            case ErrorEvent(error=err):
-                print(f"\n[Error: {err}]", file=sys.stderr)
-            case DoneEvent():
-                pass
-
-    print()  # Final newline
+    renderer = DisplayRenderer()
+    events = engine.run(args.prompt, client=client)
+    await renderer.render_event_stream(events)
 
 
 if __name__ == "__main__":

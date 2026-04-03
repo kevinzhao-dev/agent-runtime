@@ -22,12 +22,31 @@ export ANTHROPIC_API_KEY="your-key-here"
 ### Run
 
 ```bash
-# Interactive REPL
+# Interactive REPL (Rich TUI with streaming markdown, spinners)
 python main.py
 
 # One-shot mode
 python main.py "Create a hello world in python"
+
+# Debug mode (agent_engine.* logs only, no third-party noise)
+python main.py --verbose
+
+# Dry run (no API calls, mock responses)
+python main.py --dry-run
 ```
+
+### Slash Commands
+
+In the interactive REPL, type `/help` to see available commands:
+
+| Command    | Description                        |
+|------------|------------------------------------|
+| `/help`    | Show available commands             |
+| `/history` | Show conversation turns             |
+| `/log`     | Show path to session log file       |
+| `/compact` | Show context compaction stats       |
+
+Commands are modular (one file per command in `commands/`) and dual-use — invocable from the REPL or programmatically by the system.
 
 ### Test
 
