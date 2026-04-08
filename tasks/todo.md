@@ -216,4 +216,37 @@ agent_runtime/
 
 ## Review
 
-_(to be filled after implementation)_
+### Summary
+All 6 milestones completed. **163 tests, all passing, 0 API calls required.**
+
+### What was built
+| Module | Lines | Purpose |
+|--------|-------|---------|
+| `models.py` | 120 | Event types, TurnConfig, SessionState, WorkingMemory, message helpers |
+| `provider.py` | 260 | Provider registry, auto-detection, 2 streaming adapters, message converters |
+| `query_loop.py` | 185 | AsyncGenerator loop with State, mock adapter, permission, ledger integration |
+| `tools/base.py` | 110 | ToolSpec, ToolRegistry, LedgerEntry, output truncation |
+| `tools/*.py` | 130 | 5 tools: read_file, write_file, bash, grep_search, ask_user |
+| `prompt.py` | 100 | 4-layer prompt builder with source labels and cache/dynamic split |
+| `memory.py` | 75 | 3-layer memory: rules (always), index (always), topics (on demand) |
+| `context.py` | 65 | Context assembler with working memory + ledger + compact summary |
+| `compaction.py` | 100 | Heuristic compaction with working memory survival |
+| `roles.py` | 80 | 4 roles, RolePolicy type, impl!=verify boundary |
+| `storage.py` | 85 | Flat file persistence (JSON state + JSONL transcript) |
+| `app.py` | 95 | Thin CLI REPL |
+| **Total** | **~1,400** | |
+
+### Key design decisions
+1. **Async generator loop** — yields typed events, caller controls rendering
+2. **Immutable TurnConfig + mutable SessionState** — clean separation
+3. **Tool registry pattern** — add a tool = add a file + register()
+4. **Permission callback** — injected, not hardcoded. Default: auto for low-risk, deny for high-risk
+5. **Compaction preserves working memory** — the critical insight from Claude Code
+6. **Provider abstraction** — neutral message format, 2 adapters cover all providers
+
+### PRD success criteria status
+- [x] Multi-turn task end-to-end (read → grep → write)
+- [x] 10+ turn session survives compaction
+- [x] Every tool action has a ledger entry
+- [x] Rules / memory index / working memory / transcript are separate layers
+- [x] Main flow readable in query_loop.py alone (~185 lines)
