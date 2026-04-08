@@ -31,7 +31,6 @@ def save_session(state: SessionState, base: Path = _DEFAULT_DIR) -> Path:
         "session_id": state.session_id,
         "messages": state.messages,
         "ledger": [asdict(e) for e in state.ledger],
-        "loaded_topics": state.loaded_topics,
         "working_memory": asdict(state.working_memory),
         "compact_summary": state.compact_summary,
         "total_input_tokens": state.total_input_tokens,
@@ -54,7 +53,6 @@ def load_session(session_id: str, base: Path = _DEFAULT_DIR) -> SessionState | N
 
     state = SessionState(session_id=data["session_id"])
     state.messages = data.get("messages", [])
-    state.loaded_topics = data.get("loaded_topics", [])
     state.compact_summary = data.get("compact_summary", "")
     state.total_input_tokens = data.get("total_input_tokens", 0)
     state.total_output_tokens = data.get("total_output_tokens", 0)

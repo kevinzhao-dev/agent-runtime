@@ -16,28 +16,9 @@ from __future__ import annotations
 
 from typing import Any
 
-from agent_runtime.prompt.context import format_working_memory
+from agent_runtime.engine.loop import estimate_tokens
 from agent_runtime.engine.models import SessionState, TurnConfig, WorkingMemory, user_message
-
-
-def estimate_tokens(text: str) -> int:
-    """Rough token count via char heuristic."""
-    return int(len(text) / 3.5)
-
-
-def estimate_messages_tokens(messages: list[dict[str, Any]]) -> int:
-    """Estimate total tokens across all messages."""
-    total = 0
-    for m in messages:
-        content = m.get("content", "")
-        if isinstance(content, str):
-            total += len(content)
-        elif isinstance(content, list):
-            for block in content:
-                if isinstance(block, dict):
-                    total += len(str(block.get("content", "")))
-                    total += len(str(block.get("text", "")))
-    return int(total / 3.5)
+from agent_runtime.prompt.context import format_working_memory
 
 
 def _summarize_messages(messages: list[dict[str, Any]], max_lines: int = 20) -> str:

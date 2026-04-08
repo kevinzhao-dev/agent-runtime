@@ -87,7 +87,6 @@ class TurnConfig:
     model_name: str = "gpt-5.4-mini"
     compact_threshold_tokens: int = 24_000
     max_tokens: int = 8192
-    system_mode: str = "default"
 
 
 # ── Working Memory (survives compaction) ──────────────────────────────────
@@ -114,7 +113,6 @@ class SessionState:
     session_id: str = field(default_factory=lambda: uuid.uuid4().hex[:12])
     messages: list[dict[str, Any]] = field(default_factory=list)
     ledger: list[Any] = field(default_factory=list)  # list[LedgerEntry]
-    loaded_topics: list[str] = field(default_factory=list)
     working_memory: WorkingMemory = field(default_factory=WorkingMemory)
     compact_summary: str = ""
     total_input_tokens: int = 0

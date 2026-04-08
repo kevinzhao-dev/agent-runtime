@@ -56,10 +56,6 @@ class AgentManager:
         """Validate spawn request. Returns error string or None if valid."""
         if config.depth >= MAX_DEPTH:
             return f"Max agent depth ({MAX_DEPTH}) exceeded."
-        if parent_role and parent_role == config.role == "implementation":
-            # Implementation cannot spawn implementation as verifier
-            # (but can spawn research or verification)
-            pass  # allowed — they're not verifying
         if parent_role == config.role and config.role == "verification":
             return "Verification agent cannot spawn another verification agent."
         return None

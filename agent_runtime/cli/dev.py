@@ -59,8 +59,6 @@ def cmd_show(session_id: str) -> None:
     print(f"  Ledger entries: {len(state.ledger)}")
     print(f"  Input tokens:   {state.total_input_tokens}")
     print(f"  Output tokens:  {state.total_output_tokens}")
-    print(f"  Topics loaded:  {state.loaded_topics or '(none)'}")
-
     if state.working_memory.task_state:
         print(f"\n  Working Memory:")
         print(f"    Task: {state.working_memory.task_state}")

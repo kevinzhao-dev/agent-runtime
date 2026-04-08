@@ -1,12 +1,8 @@
 """Tests for compaction and recovery paths."""
 import pytest
 
-from agent_runtime.engine.compaction import (
-    compact,
-    estimate_messages_tokens,
-    estimate_tokens,
-    update_working_memory,
-)
+from agent_runtime.engine.compaction import compact, update_working_memory
+from agent_runtime.engine.loop import estimate_tokens
 from agent_runtime.engine.models import (
     SessionState,
     TurnConfig,
@@ -28,17 +24,11 @@ async def collect_events(gen) -> list:
 
 class TestEstimateTokens:
     def test_simple(self):
-        assert estimate_tokens("hello") == int(5 / 3.5)
+        msgs = [{"role": "user", "content": "hello"}]
+        assert estimate_tokens(msgs) == int(5 / 3.5)
 
     def test_empty(self):
-        assert estimate_tokens("") == 0
-
-
-class TestEstimateMessagesTokens:
-    def test_simple_messages(self):
-        msgs = [user_message("hello world")]
-        tokens = estimate_messages_tokens(msgs)
-        assert tokens == int(len("hello world") / 3.5)
+        assert estimate_tokens([]) == 0
 
 
 class TestCompact:

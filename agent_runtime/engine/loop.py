@@ -7,9 +7,9 @@ Yields an async stream of typed Events for the caller to consume.
 """
 from __future__ import annotations
 
-from typing import Any, AsyncGenerator, Callable, Generator
-
 import inspect
+import time as _time
+from typing import Any, AsyncGenerator, Callable, Generator
 
 from agent_runtime.engine.models import (
     ChildEvent,
@@ -27,7 +27,7 @@ from agent_runtime.engine.models import (
     user_message,
 )
 from agent_runtime.provider import AssistantTurn, TextChunk, ThinkingChunk
-from agent_runtime.tools.base import ToolRegistry, registry as default_registry
+from agent_runtime.tools.base import LedgerEntry, ToolRegistry, registry as default_registry
 
 
 # ── Mock Model Adapter (for testing without API) ─────────────────────────
@@ -79,16 +79,6 @@ PermissionCallback = Callable[[str, dict[str, Any]], bool]
 def _auto_permission(tool_name: str, tool_input: dict[str, Any]) -> bool:
     """Default permission: low-risk auto-allow, high-risk deny."""
     return not default_registry.is_high_risk(tool_name)
-
-
-def _noop_tool_executor(
-    name: str,
-    tool_input: dict[str, Any],
-    state: SessionState,
-    config: TurnConfig,
-) -> str:
-    """Placeholder tool executor that returns a stub message."""
-    return f"[stub] Tool '{name}' not yet implemented."
 
 
 # ── Compaction Check ──────────────────────────────────────────────────────
@@ -242,8 +232,6 @@ async def run_query_loop(
                     except Exception as e:
                         output = f"Error: {e}"
                         status = "error"
-                    from agent_runtime.tools.base import LedgerEntry
-                    import time as _time
                     entry = LedgerEntry(
                         tool_name=tc["name"],
                         tool_input=tc["input"],
