@@ -1,6 +1,7 @@
 """Core runtime engine — loop, state, compaction."""
 from agent_runtime.engine.loop import MockModelAdapter, run_query_loop
 from agent_runtime.engine.models import (
+    ChildEvent,
     Event,
     FinalEvent,
     RecoveryEvent,

@@ -62,7 +62,19 @@ class FinalEvent:
     text: str = ""
 
 
-Event = ThinkingEvent | TextDeltaEvent | ToolCallEvent | ToolResultEvent | RecoveryEvent | FinalEvent
+@dataclass(slots=True)
+class ChildEvent:
+    """Event forwarded from a child agent's stream."""
+    type: Literal["child_event"] = "child_event"
+    agent_id: str = ""
+    role: str = ""
+    inner: Any = None  # The child's actual Event
+
+
+Event = (
+    ThinkingEvent | TextDeltaEvent | ToolCallEvent | ToolResultEvent
+    | RecoveryEvent | FinalEvent | ChildEvent
+)
 
 
 # ── Turn Configuration (immutable per query) ──────────────────────────────

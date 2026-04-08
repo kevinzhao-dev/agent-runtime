@@ -9,7 +9,10 @@ from __future__ import annotations
 
 from typing import Any, AsyncGenerator, Callable, Generator
 
+import inspect
+
 from agent_runtime.engine.models import (
+    ChildEvent,
     Event,
     FinalEvent,
     RecoveryEvent,
@@ -216,8 +219,26 @@ async def run_query_loop(
                 # Execute tool via registry or legacy executor
                 if tool_executor is not None:
                     try:
-                        output = tool_executor(tc["name"], tc["input"], state, config)
-                        status: str = "ok"
+                        result = tool_executor(tc["name"], tc["input"], state, config)
+                        # Await coroutines (async def tool executors)
+                        if inspect.isawaitable(result):
+                            result = await result
+                        # Support async generator tools (e.g. spawn_task)
+                        if inspect.isasyncgen(result):
+                            output = ""
+                            async for child_event in result:
+                                yield child_event
+                                # Capture final text from child
+                                if hasattr(child_event, "type") and child_event.type == "child_event":
+                                    inner = child_event.inner
+                                    if hasattr(inner, "type") and inner.type == "final":
+                                        output = inner.text
+                            if not output:
+                                output = "[agent completed]"
+                            status: str = "ok"
+                        else:
+                            output = result
+                            status = "ok"
                     except Exception as e:
                         output = f"Error: {e}"
                         status = "error"
