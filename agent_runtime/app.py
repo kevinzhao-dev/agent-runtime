@@ -6,7 +6,8 @@ from __future__ import annotations
 
 import asyncio
 import sys
-from dataclasses import asdict
+import threading
+import time
 
 from agent_runtime.compaction import compact
 from agent_runtime.context import build_task_context
@@ -14,7 +15,7 @@ from agent_runtime.memory import load_memory_index, load_rules
 from agent_runtime.models import SessionState, TurnConfig
 from agent_runtime.prompt import build_prompt
 from agent_runtime.query_loop import run_query_loop
-from agent_runtime.storage import save_session
+from agent_runtime.storage import append_transcript, save_session
 from agent_runtime.tools import registry
 
 
@@ -24,7 +25,6 @@ def _build_system_prompt(state: SessionState, config: TurnConfig) -> str:
     memory_index = load_memory_index("MEMORY.md")
     task_context = build_task_context(state, rules_content=rules, memory_index=memory_index)
 
-    # Format tool descriptions
     tool_descs = "\n".join(
         f"- **{s['name']}**: {s['description']}"
         for s in registry.get_schemas()
@@ -49,6 +49,40 @@ def _permission_prompt(tool_name: str, tool_input: dict) -> bool:
     return answer in ("y", "yes")
 
 
+# ── Spinner ───────────────────────────────────────────────────────────────
+
+class _Spinner:
+    """Simple thinking indicator that runs until stopped."""
+    _FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
+
+    def __init__(self, label: str = "Thinking") -> None:
+        self._label = label
+        self._stop = threading.Event()
+        self._thread: threading.Thread | None = None
+
+    def start(self) -> None:
+        self._stop.clear()
+        self._thread = threading.Thread(target=self._spin, daemon=True)
+        self._thread.start()
+
+    def stop(self) -> None:
+        self._stop.set()
+        if self._thread:
+            self._thread.join()
+        # Clear spinner line
+        print(f"\r{' ' * (len(self._label) + 4)}\r", end="", flush=True)
+
+    def _spin(self) -> None:
+        i = 0
+        while not self._stop.is_set():
+            frame = self._FRAMES[i % len(self._FRAMES)]
+            print(f"\r{frame} {self._label}...", end="", flush=True)
+            i += 1
+            self._stop.wait(0.1)
+
+
+# ── REPL ──────────────────────────────────────────────────────────────────
+
 async def _run_session(config: TurnConfig) -> None:
     """Run an interactive REPL session."""
     state = SessionState()
@@ -70,12 +104,28 @@ async def _run_session(config: TurnConfig) -> None:
 
         system_prompt = _build_system_prompt(state, config)
 
+        # Save the system prompt used for this turn (for dev analysis)
+        append_transcript(state.session_id, {
+            "type": "system_prompt",
+            "turn": state.turn_count,
+            "prompt": system_prompt,
+        })
+
+        spinner = _Spinner("Thinking")
+        spinner.start()
+        first_chunk = True
+
         async for event in run_query_loop(
             user_input, state, config,
             system_prompt=system_prompt,
             permission_callback=_permission_prompt,
             compact_handler=compact,
         ):
+            # Stop spinner on first output
+            if first_chunk and event.type in ("text_delta", "tool_call", "final"):
+                spinner.stop()
+                first_chunk = False
+
             if event.type == "text_delta":
                 print(event.text, end="", flush=True)
             elif event.type == "thinking":
@@ -85,12 +135,23 @@ async def _run_session(config: TurnConfig) -> None:
             elif event.type == "tool_result":
                 status = "ok" if event.status == "ok" else f"ERROR: {event.status}"
                 print(f"  → {status}")
+                # Restart spinner while model processes tool result
+                spinner = _Spinner("Processing")
+                spinner.start()
+                first_chunk = False  # already past first
             elif event.type == "recovery":
                 print(f"\n[Recovery: {event.reason}] {event.detail}")
             elif event.type == "final":
-                if not event.text.strip():
-                    pass  # already streamed
                 print()  # newline after response
+
+            # Log event to transcript
+            append_transcript(state.session_id, {
+                "type": event.type,
+                "turn": state.turn_count,
+            })
+
+        # Ensure spinner is stopped
+        spinner.stop()
 
         # Save after each turn
         save_session(state)
