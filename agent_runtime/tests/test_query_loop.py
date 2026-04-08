@@ -165,7 +165,8 @@ class TestQueryLoopWithTools:
 
         events = await collect_events(
             run_query_loop("delete everything", state, config,
-                           model_adapter=adapter, tool_executor=failing_executor)
+                           model_adapter=adapter, tool_executor=failing_executor,
+                           permission_callback=lambda n, i: True)
         )
 
         types = [e.type for e in events]

@@ -24,6 +24,7 @@ from agent_runtime.models import (
     user_message,
 )
 from agent_runtime.provider import AssistantTurn, TextChunk, ThinkingChunk
+from agent_runtime.tools.base import ToolRegistry, registry as default_registry
 
 
 # ── Mock Model Adapter (for testing without API) ─────────────────────────
@@ -68,6 +69,14 @@ ToolExecutor = Callable[
     str,  # output
 ]
 
+# Permission callback: given tool_name and input, returns True if allowed.
+PermissionCallback = Callable[[str, dict[str, Any]], bool]
+
+
+def _auto_permission(tool_name: str, tool_input: dict[str, Any]) -> bool:
+    """Default permission: low-risk auto-allow, high-risk deny."""
+    return not default_registry.is_high_risk(tool_name)
+
 
 def _noop_tool_executor(
     name: str,
@@ -109,7 +118,9 @@ async def run_query_loop(
     config: TurnConfig,
     *,
     model_adapter: MockModelAdapter | None = None,
-    tool_executor: ToolExecutor = _noop_tool_executor,
+    tool_executor: ToolExecutor | None = None,
+    tool_registry: ToolRegistry | None = None,
+    permission_callback: PermissionCallback = _auto_permission,
     compact_handler: Callable[[SessionState, TurnConfig], str] | None = None,
 ) -> AsyncGenerator[Event, None]:
     """Core agent loop. Yields typed events as an async generator.
@@ -119,9 +130,12 @@ async def run_query_loop(
         state: Mutable session state carried across turns.
         config: Immutable turn configuration.
         model_adapter: Optional mock adapter (if None, uses real provider).
-        tool_executor: Callable to execute tools. Default is a noop stub.
+        tool_executor: Legacy callable to execute tools. If set, overrides registry.
+        tool_registry: ToolRegistry for tool lookup and execution. Defaults to global.
+        permission_callback: Returns True if tool is allowed. Default: auto for low-risk.
         compact_handler: Optional callable for compaction. Returns summary string.
     """
+    reg = tool_registry or default_registry
     # Append user message
     state.messages.append(user_message(user_input))
 
@@ -138,7 +152,7 @@ async def run_query_loop(
                 model=config.model_name,
                 system="",  # placeholder — prompt builder comes in M3
                 messages=state.messages,
-                tool_schemas=[],  # placeholder — tool registry comes in M2
+                tool_schemas=reg.get_schemas() if config.allow_tools else [],
                 max_tokens=config.max_tokens,
             )
 
@@ -181,18 +195,49 @@ async def run_query_loop(
                     tool_input=tc["input"],
                 )
 
-                # Execute tool
-                try:
-                    output = tool_executor(
-                        tc["name"], tc["input"], state, config,
+                # Permission check
+                if not permission_callback(tc["name"], tc["input"]):
+                    output = f"Permission denied for tool '{tc['name']}'."
+                    yield ToolResultEvent(
+                        tool_call_id=tc["id"],
+                        tool_name=tc["name"],
+                        output=output,
+                        status="error",
                     )
-                    status: str = "ok"
-                except Exception as e:
-                    output = f"Error: {e}"
-                    status = "error"
+                    state.messages.append(tool_result_message(
+                        tool_call_id=tc["id"],
+                        name=tc["name"],
+                        content=output,
+                    ))
+                    continue
+
+                # Execute tool via registry or legacy executor
+                if tool_executor is not None:
+                    try:
+                        output = tool_executor(tc["name"], tc["input"], state, config)
+                        status: str = "ok"
+                    except Exception as e:
+                        output = f"Error: {e}"
+                        status = "error"
+                    from agent_runtime.tools.base import LedgerEntry
+                    import time as _time
+                    entry = LedgerEntry(
+                        tool_name=tc["name"],
+                        tool_input=tc["input"],
+                        status=status,
+                        started_at=_time.time(),
+                        ended_at=_time.time(),
+                    )
+                else:
+                    output, entry = reg.execute(tc["name"], tc["input"])
+                    status = entry.status
+
+                state.ledger.append(entry)
+
+                if status == "error":
                     yield RecoveryEvent(
                         reason="tool_failure",
-                        detail=f"Tool '{tc['name']}' failed: {e}",
+                        detail=f"Tool '{tc['name']}' failed: {entry.error or output}",
                     )
 
                 yield ToolResultEvent(

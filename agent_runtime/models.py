@@ -101,7 +101,7 @@ class SessionState:
     """Mutable state for the duration of a session."""
     session_id: str = field(default_factory=lambda: uuid.uuid4().hex[:12])
     messages: list[dict[str, Any]] = field(default_factory=list)
-    ledger: list[Any] = field(default_factory=list)  # list[LedgerEntry] once tools module exists
+    ledger: list[Any] = field(default_factory=list)  # list[LedgerEntry]
     loaded_topics: list[str] = field(default_factory=list)
     working_memory: WorkingMemory = field(default_factory=WorkingMemory)
     compact_summary: str = ""
