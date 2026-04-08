@@ -4,10 +4,10 @@ These tests verify the full system integration without real API calls.
 """
 import pytest
 
-from agent_runtime.compaction import compact
-from agent_runtime.models import SessionState, TurnConfig
+from agent_runtime.engine.compaction import compact
+from agent_runtime.engine.models import SessionState, TurnConfig
 from agent_runtime.provider import AssistantTurn
-from agent_runtime.query_loop import MockModelAdapter, run_query_loop
+from agent_runtime.engine.loop import MockModelAdapter, run_query_loop
 
 
 async def collect_events(gen) -> list:

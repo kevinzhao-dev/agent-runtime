@@ -1,7 +1,7 @@
 """Tests for flat file storage."""
 import json
 
-from agent_runtime.models import SessionState, WorkingMemory
+from agent_runtime.engine.models import SessionState, WorkingMemory
 from agent_runtime.storage import (
     append_transcript,
     list_sessions,

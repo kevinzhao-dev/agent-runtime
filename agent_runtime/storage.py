@@ -13,7 +13,7 @@ from dataclasses import asdict
 from pathlib import Path
 from typing import Any
 
-from agent_runtime.models import SessionState, WorkingMemory
+from agent_runtime.engine.models import SessionState, WorkingMemory
 
 _DEFAULT_DIR = Path(".agent_sessions")
 

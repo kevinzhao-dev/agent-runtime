@@ -1,7 +1,7 @@
 """Tests for the 3-layer memory model."""
 from pathlib import Path
 
-from agent_runtime.memory import list_topics, load_memory_index, load_rules, load_topic
+from agent_runtime.prompt.memory import list_topics, load_memory_index, load_rules, load_topic
 
 
 class TestLoadRules:

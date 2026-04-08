@@ -1,7 +1,7 @@
 """Tests for the core query loop using mock model adapter."""
 import pytest
 
-from agent_runtime.models import (
+from agent_runtime.engine.models import (
     FinalEvent,
     RecoveryEvent,
     SessionState,
@@ -11,7 +11,7 @@ from agent_runtime.models import (
     TurnConfig,
 )
 from agent_runtime.provider import AssistantTurn
-from agent_runtime.query_loop import (
+from agent_runtime.engine.loop import (
     MockModelAdapter,
     estimate_tokens,
     run_query_loop,

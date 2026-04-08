@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from typing import Any, AsyncGenerator, Callable, Generator
 
-from agent_runtime.models import (
+from agent_runtime.engine.models import (
     Event,
     FinalEvent,
     RecoveryEvent,

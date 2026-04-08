@@ -8,7 +8,7 @@ Each section carries a source label for debuggability.
 """
 from __future__ import annotations
 
-from agent_runtime.models import SessionState, WorkingMemory
+from agent_runtime.engine.models import SessionState, WorkingMemory
 
 
 def format_working_memory(wm: WorkingMemory) -> str:

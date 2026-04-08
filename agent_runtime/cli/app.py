@@ -6,15 +6,10 @@ from __future__ import annotations
 
 import asyncio
 import sys
-import threading
-import time
 
-from agent_runtime.compaction import compact
-from agent_runtime.context import build_task_context
-from agent_runtime.memory import load_memory_index, load_rules
-from agent_runtime.models import SessionState, TurnConfig
-from agent_runtime.prompt import build_prompt
-from agent_runtime.query_loop import run_query_loop
+from agent_runtime.cli.display import Spinner
+from agent_runtime.engine import SessionState, TurnConfig, compact, run_query_loop
+from agent_runtime.prompt import build_prompt, build_task_context, load_memory_index, load_rules
 from agent_runtime.storage import append_transcript, save_session
 from agent_runtime.tools import registry
 
@@ -49,38 +44,6 @@ def _permission_prompt(tool_name: str, tool_input: dict) -> bool:
     return answer in ("y", "yes")
 
 
-# ── Spinner ───────────────────────────────────────────────────────────────
-
-class _Spinner:
-    """Simple thinking indicator that runs until stopped."""
-    _FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
-
-    def __init__(self, label: str = "Thinking") -> None:
-        self._label = label
-        self._stop = threading.Event()
-        self._thread: threading.Thread | None = None
-
-    def start(self) -> None:
-        self._stop.clear()
-        self._thread = threading.Thread(target=self._spin, daemon=True)
-        self._thread.start()
-
-    def stop(self) -> None:
-        self._stop.set()
-        if self._thread:
-            self._thread.join()
-        # Clear spinner line
-        print(f"\r{' ' * (len(self._label) + 4)}\r", end="", flush=True)
-
-    def _spin(self) -> None:
-        i = 0
-        while not self._stop.is_set():
-            frame = self._FRAMES[i % len(self._FRAMES)]
-            print(f"\r{frame} {self._label}...", end="", flush=True)
-            i += 1
-            self._stop.wait(0.1)
-
-
 # ── REPL ──────────────────────────────────────────────────────────────────
 
 async def _run_session(config: TurnConfig) -> None:
@@ -111,7 +74,7 @@ async def _run_session(config: TurnConfig) -> None:
             "prompt": system_prompt,
         })
 
-        spinner = _Spinner("Thinking")
+        spinner = Spinner("Thinking")
         spinner.start()
         first_chunk = True
 
@@ -136,7 +99,7 @@ async def _run_session(config: TurnConfig) -> None:
                 status = "ok" if event.status == "ok" else f"ERROR: {event.status}"
                 print(f"  → {status}")
                 # Restart spinner while model processes tool result
-                spinner = _Spinner("Processing")
+                spinner = Spinner("Processing")
                 spinner.start()
                 first_chunk = False  # already past first
             elif event.type == "recovery":

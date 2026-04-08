@@ -1,9 +1,9 @@
 """Integration tests: tools wired into query loop with ledger and permissions."""
 import pytest
 
-from agent_runtime.models import SessionState, TurnConfig
+from agent_runtime.engine.models import SessionState, TurnConfig
 from agent_runtime.provider import AssistantTurn
-from agent_runtime.query_loop import MockModelAdapter, run_query_loop
+from agent_runtime.engine.loop import MockModelAdapter, run_query_loop
 
 
 async def collect_events(gen) -> list:

@@ -1,6 +1,6 @@
 """Tests for the context assembler."""
-from agent_runtime.context import build_task_context, format_working_memory
-from agent_runtime.models import SessionState, WorkingMemory
+from agent_runtime.prompt.context import build_task_context, format_working_memory
+from agent_runtime.engine.models import SessionState, WorkingMemory
 from agent_runtime.tools.base import LedgerEntry
 
 

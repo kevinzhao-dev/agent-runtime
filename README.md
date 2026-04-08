@@ -69,16 +69,21 @@ python -m pytest agent_runtime/tests/ -v
 
 ```
 agent_runtime/
-  query_loop.py     # Core async loop — the heartbeat (~185 lines)
-  models.py         # Event types, TurnConfig, SessionState, WorkingMemory
-  provider.py       # Multi-provider streaming (Anthropic + OpenAI-compatible)
-  prompt.py         # 4-layer prompt builder (base > project > mode > task)
-  memory.py         # 3-layer memory (rules > index > topics)
-  context.py        # Per-turn context assembler
-  compaction.py     # Context compaction with working memory survival
-  roles.py          # Role model (research, implementation, verification, synthesis)
-  tools/            # 5 tools: read_file, write_file, bash, grep_search, ask_user
-  storage.py        # Session persistence (JSON + JSONL)
-  app.py            # CLI REPL
-  dev.py            # Developer analysis tools
+  __main__.py          # Entry point: python -m agent_runtime
+  engine/              # Core runtime kernel
+    loop.py            #   Async query loop — the heartbeat
+    models.py          #   Event types, TurnConfig, SessionState, WorkingMemory
+    compaction.py      #   Context compaction with working memory survival
+  provider.py          # Multi-provider streaming (Anthropic + OpenAI-compatible)
+  prompt/              # Prompt control plane
+    builder.py         #   4-layer prompt builder (base > project > mode > task)
+    memory.py          #   3-layer memory (rules > index > topics)
+    context.py         #   Per-turn context assembler
+  tools/               # 5 tools: read_file, write_file, bash, grep_search, ask_user
+  roles/               # Role model (research, implementation, verification, synthesis)
+  storage.py           # Session persistence (JSON + JSONL)
+  cli/                 # CLI layer
+    app.py             #   Interactive REPL
+    dev.py             #   Developer analysis tools
+    display.py         #   Spinner, formatting
 ```

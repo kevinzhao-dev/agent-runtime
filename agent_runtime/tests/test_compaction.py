@@ -1,13 +1,13 @@
 """Tests for compaction and recovery paths."""
 import pytest
 
-from agent_runtime.compaction import (
+from agent_runtime.engine.compaction import (
     compact,
     estimate_messages_tokens,
     estimate_tokens,
     update_working_memory,
 )
-from agent_runtime.models import (
+from agent_runtime.engine.models import (
     SessionState,
     TurnConfig,
     WorkingMemory,
@@ -16,7 +16,7 @@ from agent_runtime.models import (
     user_message,
 )
 from agent_runtime.provider import AssistantTurn
-from agent_runtime.query_loop import MockModelAdapter, run_query_loop
+from agent_runtime.engine.loop import MockModelAdapter, run_query_loop
 
 
 async def collect_events(gen) -> list:

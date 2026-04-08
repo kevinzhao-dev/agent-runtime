@@ -1,5 +1,5 @@
 """Tests for core data models."""
-from agent_runtime.models import (
+from agent_runtime.engine.models import (
     FinalEvent,
     RecoveryEvent,
     SessionState,
