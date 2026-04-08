@@ -71,13 +71,16 @@ class AgentManager:
         *,
         system_prompt: str = "",
         model_adapter: MockModelAdapter | None = None,
+        parent_state: SessionState | None = None,
     ) -> AsyncGenerator[Event, None]:
         """Spawn a child agent and yield its events wrapped in ChildEvent.
 
         This is an async generator — the parent loop can yield from it
         to stream child events to the caller in real time.
 
-        After all events, yields a FinalEvent-like ChildEvent with the result.
+        Args:
+            parent_state: If config.fork=True, child copies parent's messages
+                          for prompt cache sharing.
         """
         # Validate
         error = self.validate_spawn(config)
@@ -100,8 +103,12 @@ class AgentManager:
         allowed = config.allowed_tools or list(policy.allowed_tools)
         scoped_registry = _build_scoped_registry(allowed, self._source_registry)
 
-        # Fresh state for child
+        # Child state: fork parent or start fresh
         child_state = SessionState()
+        if config.fork and parent_state is not None:
+            # Copy parent messages for prompt cache sharing
+            child_state.messages = list(parent_state.messages)
+
         child_config = TurnConfig(
             model_name=config.model_name,
             max_turns=config.max_turns,

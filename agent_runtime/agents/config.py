@@ -12,7 +12,11 @@ MAX_DEPTH = 3
 
 @dataclass(frozen=True, slots=True)
 class AgentConfig:
-    """Configuration for a spawned agent."""
+    """Configuration for a spawned agent.
+
+    fork: If True, child inherits parent's message history (prompt cache hit).
+          If False (default), child starts with a fresh context.
+    """
     role: RoleName
     model_name: str = "gpt-5.4-mini"
     max_turns: int = 8
@@ -20,6 +24,7 @@ class AgentConfig:
     agent_id: str = field(default_factory=lambda: f"agent-{uuid.uuid4().hex[:8]}")
     parent_id: str | None = None
     depth: int = 0
+    fork: bool = False
 
 
 @dataclass(slots=True)
