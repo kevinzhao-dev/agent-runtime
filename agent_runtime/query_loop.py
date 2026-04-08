@@ -117,6 +117,7 @@ async def run_query_loop(
     state: SessionState,
     config: TurnConfig,
     *,
+    system_prompt: str = "",
     model_adapter: MockModelAdapter | None = None,
     tool_executor: ToolExecutor | None = None,
     tool_registry: ToolRegistry | None = None,
@@ -129,6 +130,7 @@ async def run_query_loop(
         user_input: The user's message to process.
         state: Mutable session state carried across turns.
         config: Immutable turn configuration.
+        system_prompt: Assembled system prompt from prompt builder.
         model_adapter: Optional mock adapter (if None, uses real provider).
         tool_executor: Legacy callable to execute tools. If set, overrides registry.
         tool_registry: ToolRegistry for tool lookup and execution. Defaults to global.
@@ -150,7 +152,7 @@ async def run_query_loop(
             from agent_runtime.provider import stream as provider_stream
             gen = provider_stream(
                 model=config.model_name,
-                system="",  # placeholder — prompt builder comes in M3
+                system=system_prompt,
                 messages=state.messages,
                 tool_schemas=reg.get_schemas() if config.allow_tools else [],
                 max_tokens=config.max_tokens,
