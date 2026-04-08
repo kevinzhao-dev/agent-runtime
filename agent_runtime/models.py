@@ -72,7 +72,7 @@ class TurnConfig:
     """Immutable parameters for a single query loop invocation."""
     max_turns: int = 8
     allow_tools: bool = True
-    model_name: str = "claude-sonnet-4-6"
+    model_name: str = "gpt-5.4-mini"
     compact_threshold_tokens: int = 24_000
     max_tokens: int = 8192
     system_mode: str = "default"

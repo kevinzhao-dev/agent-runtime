@@ -58,7 +58,7 @@ class TestTurnConfig:
         c = TurnConfig()
         assert c.max_turns == 8
         assert c.allow_tools is True
-        assert c.model_name == "claude-sonnet-4-6"
+        assert c.model_name == "gpt-5.4-mini"
         assert c.compact_threshold_tokens == 24_000
 
     def test_frozen(self):

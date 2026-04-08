@@ -32,7 +32,7 @@ PROVIDERS: dict[str, dict[str, Any]] = {
         "api_key_env": "OPENAI_API_KEY",
         "base_url": "https://api.openai.com/v1",
         "context_limit": 128_000,
-        "models": ["gpt-4o", "gpt-4o-mini", "gpt-4.1", "gpt-4.1-mini", "o3-mini"],
+        "models": ["gpt-5.4", "gpt-5.4-mini", "gpt-5.4-nano", "o3-mini"],
     },
     "gemini": {
         "type": "openai",
@@ -309,7 +309,7 @@ def stream_openai_compat(
         "model": model,
         "messages": oai_messages,
         "stream": True,
-        "max_tokens": max_tokens,
+        "max_completion_tokens": max_tokens,
     }
     if tool_schemas:
         kwargs["tools"] = tools_to_openai(tool_schemas)

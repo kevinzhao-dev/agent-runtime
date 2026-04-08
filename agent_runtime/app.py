@@ -103,7 +103,7 @@ async def _run_session(config: TurnConfig) -> None:
 
 def main() -> None:
     """Entry point."""
-    model = "claude-sonnet-4-6"
+    model = "gpt-5.4-mini"
     if len(sys.argv) > 1:
         model = sys.argv[1]
 
