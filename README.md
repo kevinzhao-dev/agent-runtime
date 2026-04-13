@@ -1,66 +1,89 @@
-# Agent Template
+# Agent Runtime Kernel
 
-A Python agent engine template that learns from production-grade coding agent patterns.
-
-The core idea: **treat the model as an unreliable component, build reliability into the runtime** — state management, context governance, error recovery, permission gates. The model is just one heartbeat inside a disciplined loop.
+A minimal agent runtime in modern Python. Query Loop as heartbeat. Prompt as control plane. Context as scarce resource. Tools as managed syscalls.
 
 ## Quick Start
 
-### Prerequisites
-
-- Python 3.11+
-- An Anthropic API key
-
-### Install
-
 ```bash
-cd agent-engine
-pip install -e ".[dev]"
-export ANTHROPIC_API_KEY="your-key-here"
+# Install dependencies
+pip install anthropic openai
+
+# Run the agent REPL (default model: gpt-5.4-mini)
+python -m agent_runtime.app
+
+# Use a different model
+python -m agent_runtime.app claude-sonnet-4-6
+python -m agent_runtime.app deepseek-chat
 ```
 
-### Run
-
+Set your API key first:
 ```bash
-# Interactive REPL (Rich TUI with streaming markdown, spinners)
-python main.py
-
-# One-shot mode
-python main.py "Create a hello world in python"
-
-# Debug mode (agent_engine.* logs only, no third-party noise)
-python main.py --verbose
-
-# Dry run (no API calls, mock responses)
-python main.py --dry-run
+export OPENAI_API_KEY="sk-..."
+# or
+export ANTHROPIC_API_KEY="sk-ant-..."
 ```
 
-### Slash Commands
+Expected output:
+```
+Agent Runtime v0.1.0 | Session: bf1520fa6d7d
+Model: gpt-5.4-mini | Max turns: 8
+Type 'quit' to exit.
 
-In the interactive REPL, type `/help` to see available commands:
-
-| Command    | Description                        |
-|------------|------------------------------------|
-| `/help`    | Show available commands             |
-| `/history` | Show conversation turns             |
-| `/log`     | Show path to session log file       |
-| `/compact` | Show context compaction stats       |
-
-Commands are modular (one file per command in `commands/`) and dual-use — invocable from the REPL or programmatically by the system.
-
-### Test
-
-```bash
-# All tests (no API key needed)
-python -m pytest tests/ -v
-
-# Single module
-python -m pytest tests/test_grep.py -v
-
-# Single test
-python -m pytest tests/test_grep.py::test_grep_basic -v
+You: read README.md
+⠋ Thinking...
+Reading the file...
+[Tool: read_file]
+  → ok
+The README contains...
 ```
 
-## License
+## Dev Tools
 
-MIT
+```bash
+# List saved sessions
+python -m agent_runtime.dev sessions
+
+# Inspect a session
+python -m agent_runtime.dev show <session_id>
+python -m agent_runtime.dev messages <session_id>
+python -m agent_runtime.dev ledger <session_id>
+
+# View system prompt (current or from a past session)
+python -m agent_runtime.dev prompt
+python -m agent_runtime.dev prompt <session_id>
+
+# Compare two sessions
+python -m agent_runtime.dev compare <id1> <id2>
+```
+
+## Run Tests
+
+```bash
+pip install pytest pytest-asyncio
+python -m pytest agent_runtime/tests/ -v
+```
+
+163 tests, 0 API calls.
+
+## Architecture
+
+```
+agent_runtime/
+  __main__.py          # Entry point: python -m agent_runtime
+  engine/              # Core runtime kernel
+    loop.py            #   Async query loop — the heartbeat
+    models.py          #   Event types, TurnConfig, SessionState, WorkingMemory
+    compaction.py      #   Context compaction with working memory survival
+  provider.py          # Multi-provider streaming (Anthropic + OpenAI-compatible)
+  prompt/              # Prompt control plane
+    builder.py         #   4-layer prompt builder (base > project > mode > task)
+    memory.py          #   3-layer memory (rules > index > topics)
+    context.py         #   Per-turn context assembler
+  tools/               # 5 tools: read_file, write_file, bash, grep_search, ask_user
+  roles/               # Role model (research, implementation, verification, synthesis)
+  storage.py           # Session persistence (JSON + JSONL)
+  cli/                 # CLI layer
+    app.py             #   Interactive REPL
+    dev.py             #   Developer analysis tools
+    display.py         #   Spinner, formatting
+```
