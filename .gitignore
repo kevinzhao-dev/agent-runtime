@@ -8,3 +8,4 @@ build/
 .venv/
 .agent-engine/
 .agent_sessions/
+tasks/
