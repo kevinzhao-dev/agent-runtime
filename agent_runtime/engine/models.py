@@ -119,6 +119,21 @@ class SessionState:
     total_output_tokens: int = 0
     turn_count: int = 0
 
+    def replace_from(self, other: "SessionState") -> None:
+        """In-place replace all fields from another SessionState.
+
+        Used by REPL commands (fork, rewind, replay) that need to swap the
+        live session without invalidating references held by subscribers.
+        """
+        self.session_id = other.session_id
+        self.messages = other.messages
+        self.ledger = other.ledger
+        self.working_memory = other.working_memory
+        self.compact_summary = other.compact_summary
+        self.total_input_tokens = other.total_input_tokens
+        self.total_output_tokens = other.total_output_tokens
+        self.turn_count = other.turn_count
+
 
 # ── Neutral Message Format ────────────────────────────────────────────────
 # Internal format that is provider-agnostic.

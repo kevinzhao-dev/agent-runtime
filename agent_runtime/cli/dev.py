@@ -206,7 +206,7 @@ def cmd_transcript(session_id: str) -> None:
         try:
             entry = json.loads(line)
             etype = entry.get("type", "?")
-            turn = entry.get("turn", "?")
+            turn = entry.get("user_turn", entry.get("turn", "?"))
             if etype == "system_prompt":
                 print(f"  [turn {turn}] system_prompt ({len(entry.get('prompt', ''))} chars)")
             else:
